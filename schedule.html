@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>바이브 캘린더</title>
+    <style>
+        :root{
+            --bg:#0b1220; --card:#121a2b; --muted:#7e8aa1; --text:#e9eefb; --accent:#4a90e2; --accent-2:#6ee7b7; --danger:#ef4444; --border:#22304b;
+        }
+        *{box-sizing:border-box}
+        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo, Noto Sans KR, sans-serif;background:linear-gradient(180deg,#0b1220,#0b1324 40%,#0f1830 100%);color:var(--text)}
+        header{display:flex;align-items:center;gap:.75rem;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);backdrop-filter:saturate(1.2) blur(2px);position:sticky;top:0;background:rgba(11,18,32,.7)}
+        .brand{display:flex;align-items:center;gap:.6rem;font-weight:700;letter-spacing:.3px}
+        .brand .dot{width:10px;height:10px;border-radius:50%;background:conic-gradient(var(--accent), var(--accent-2))}
+        .controls{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+        button,select,input[type="text"]{appearance:none;border:1px solid var(--border);background:var(--card);color:var(--text);padding:10px 12px;border-radius:12px;font-weight:600}
+        button:hover{border-color:#2b3b5b}
+        button.primary{background:var(--accent);border-color:transparent;color:white}
+        button.danger{background:var(--danger);border-color:transparent;color:white}
+        .view-switch button{padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#0e1628;color:var(--muted)}
+        .view-switch button.active{background:var(--accent);color:white;border-color:transparent}
+
+        main{max-width:1200px;margin:24px auto;padding:0 16px}
+        .calendar{display:grid;gap:12px}
+
+        /* Month grid */
+        .month-header{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;color:var(--muted);font-size:.9rem}
+        .month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+        .cell{border:1px solid var(--border);border-radius:14px;min-height:110px;background:rgba(18,26,43,.7);position:relative;padding:8px;display:flex;flex-direction:column}
+        .cell .date{font-size:.9rem;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+        .cell.today{outline:2px solid var(--accent);outline-offset:-2px}
+        .cell.other-month{opacity:.55}
+        .events{margin-top:4px;display:flex;flex-direction:column;gap:4px}
+        .event-chip{font-size:.78rem;padding:4px 6px;border-radius:8px;background:rgba(74,144,226,.15);border:1px solid rgba(74,144,226,.35);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+        /* Week & Day */
+        .time-grid{display:grid;grid-template-columns:70px 1fr;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+        .hours{background:#0d1425;border-right:1px solid var(--border)}
+        .hour{height:60px;border-bottom:1px dashed #1f2a45;color:var(--muted);font-size:.85rem;padding:6px}
+        .slots{position:relative;background:rgba(18,26,43,.6)}
+        .slot{position:absolute;left:6px;right:6px;border-radius:10px;padding:6px 8px;font-size:.85rem;background:rgba(110,231,183,.18);border:1px solid rgba(110,231,183,.35);cursor:pointer}
+
+        /* Day list */
+        .day-list{display:flex;flex-direction:column;gap:10px}
+        .day-item{border:1px solid var(--border);border-radius:14px;padding:12px;background:rgba(18,26,43,.7)}
+
+        /* Modal */
+        dialog{border:none;border-radius:16px;max-width:560px;width:95%;background:#0e1628;color:var(--text)}
+        dialog::backdrop{background:rgba(0,0,0,.5)}
+        .modal{display:grid;gap:12px;padding:10px}
+        .row{display:grid;gap:8px}
+        .row.cols{grid-template-columns:1fr 1fr;gap:10px}
+        label{font-size:.9rem;color:var(--muted)}
+        input,textarea,select{width:100%;border:1px solid var(--border);background:#0b1220;color:var(--text);border-radius:10px;padding:10px}
+        textarea{min-height:80px}
+        .actions{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+
+        .legend{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:.85rem}
+        .swatch{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.25)}
+
+        .footer{margin:24px 0;color:var(--muted);font-size:.85rem;text-align:center}
+        @media (max-width:900px){.cell{min-height:90px}}
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand"><span class="dot"></span> 바이브 캘린더</div>
+        <div class="controls">
+            <button id="prevBtn">◀</button>
+            <button id="todayBtn">오늘</button>
+            <button id="nextBtn">▶</button>
+            <strong id="title"></strong>
+            <div class="view-switch">
+                <button data-view="month" class="active">월</button>
+                <button data-view="week">주</button>
+                <button data-view="day">일</button>
+            </div>
+            <input id="search" type="text" placeholder="검색: 제목/메모/장소" />
+            <button id="addBtn" class="primary">+ 새 일정</button>
+        </div>
+    </header>
+
+    <main>
+        <section id="calendar" class="calendar"></section>
+        <div class="footer">로컬에 저장됩니다(LocalStorage). iCal(ICS) 내보내기/가져오기 준비됨.</div>
+    </main>
+
+    <dialog id="eventModal">
+        <form method="dialog" class="modal" id="eventForm">
+            <h3 id="modalTitle">일정 만들기</h3>
+            <div class="row cols">
+                <div>
+                    <label>제목</label>
+                    <input required id="evTitle" />
+                </div>
+                <div>
+                    <label>장소</label>
+                    <input id="evLocation" />
+                </div>
+            </div>
+            <div class="row cols">
+                <div>
+                    <label>시작</label>
+                    <input type="datetime-local" id="evStart" required />
+                </div>
+                <div>
+                    <label>종료</label>
+                    <input type="datetime-local" id="evEnd" required />
+                </div>
+            </div>
+            <div class="row cols">
+                <div>
+                    <label>색상</label>
+                    <select id="evColor">
+                        <option value="#4a90e2">파랑</option>
+                        <option value="#6ee7b7">민트</option>
+                        <option value="#f59e0b">주황</option>
+                        <option value="#ef4444">빨강</option>
+                        <option value="#a78bfa">보라</option>
+                    </select>
+                </div>
+                <div>
+                    <label>반복</label>
+                    <select id="evRepeat">
+                        <option value="none">없음</option>
+                        <option value="daily">매일</option>
+                        <option value="weekly">매주</option>
+                        <option value="monthly">매월(같은 일자)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <label>메모</label>
+                <textarea id="evNotes"></textarea>
+            </div>
+            <div class="actions">
+                <div class="legend">
+                    <span class="swatch" id="legendColor" style="background:#4a90e2"></span>
+                    <span id="tz"></span>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button id="delBtn" class="danger" value="delete">삭제</button>
+                    <button value="cancel">닫기</button>
+                    <button class="primary" value="save">저장</button>
+                </div>
+            </div>
+            <input type="hidden" id="evId" />
+        </form>
+    </dialog>
+
+    <script>
+        // --- Utilities ---
+        const $ = sel => document.querySelector(sel);
+        const $$ = sel => Array.from(document.querySelectorAll(sel));
+        const pad = n => String(n).padStart(2,'0');
+        const fmtYMD = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const toLocalInput = d => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+        const fromLocalInput = v => { const d = new Date(v); return new Date(d.getTime() + d.getTimezoneOffset()*60000); };
+        const clone = d => new Date(d.getTime());
+
+        // --- State ---
+        const state = {
+            view: 'month',
+            cursor: new Date(), // current view anchor
+            events: [], // stored events
+            search: ''
+        };
+
+        // --- Storage ---
+        const storeKey = 'vibe-calendar-events-v1';
+        function load(){
+            try{ state.events = JSON.parse(localStorage.getItem(storeKey)||'[]'); }
+            catch{ state.events=[]; }
+        }
+        function save(){ localStorage.setItem(storeKey, JSON.stringify(state.events)); }
+
+        // --- Event expansion (repeat rules) ---
+        function expandEvents(rangeStart, rangeEnd){
+            const out = [];
+            for(const ev of state.events){
+                const color = ev.color||'#4a90e2';
+                const repeat = ev.repeat||'none';
+                const s0 = new Date(ev.start), e0 = new Date(ev.end);
+                const dur = e0 - s0;
+                if(repeat==='none'){
+                    if(e0>=rangeStart && s0<=rangeEnd) out.push({...ev});
+                    continue;
+                }
+                const until = ev.until ? new Date(ev.until) : new Date(rangeEnd.getFullYear()+1,0,1);
+                let cursor = new Date(Math.max(s0.getTime(), rangeStart.getTime()));
+                // align cursor to first occurrence >= rangeStart
+                if(repeat==='daily'){
+                    const daysDiff = Math.floor((cursor - s0)/(86400000));
+                    cursor = new Date(s0.getTime() + Math.max(0,daysDiff)*86400000);
+                    while(cursor<=rangeEnd && cursor<=until){ out.push(inst(cursor)); cursor = new Date(cursor.getTime()+86400000); }
+                } else if(repeat==='weekly'){
+                    // move back to event weekday alignment
+                    const diff = (cursor.getDay() - s0.getDay() + 7) % 7;
+                    cursor = new Date(cursor.getTime() - diff*86400000);
+                    if(cursor < s0) cursor = s0;
+                    while(cursor<=rangeEnd && cursor<=until){ out.push(inst(cursor)); cursor = new Date(cursor.getTime()+7*86400000); }
+                } else if(repeat==='monthly'){
+                    cursor = new Date(s0);
+                    // jump to first month >= rangeStart
+                    while(cursor < rangeStart){ cursor = addMonth(cursor,1); }
+                    while(cursor<=rangeEnd && cursor<=until){ out.push(inst(cursor)); cursor = addMonth(cursor,1); }
+                }
+                function inst(startDate){
+                    const start = new Date(startDate);
+                    const end = new Date(start.getTime()+dur);
+                    return {...ev, _instance:true, start, end};
+                }
+            }
+            return out;
+        }
+        function addMonth(d, n){
+            const t = new Date(d); const day = t.getDate(); t.setMonth(t.getMonth()+n);
+            if(t.getDate()!==day){ t.setDate(0); } // handle shorter months
+            return t;
+        }
+
+        // --- Rendering ---
+        function render(){
+            $('#tz').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const cal = $('#calendar'); cal.innerHTML='';
+            $('#title').textContent = titleText();
+            $$('.view-switch button').forEach(b=>b.classList.toggle('active', b.dataset.view===state.view));
+
+            if(state.view==='month') renderMonth(cal);
+            if(state.view==='week') renderWeek(cal);
+            if(state.view==='day') renderDay(cal);
+        }
+
+        function titleText(){
+            const d = state.cursor; const y=d.getFullYear(), m=d.getMonth()+1;
+            if(state.view==='month') return `${y}년 ${m}월`;
+            if(state.view==='week'){
+                const start = startOfWeek(d), end = addDays(start,6);
+                return `${fmtYMD(start)} ~ ${fmtYMD(end)}`;
+            }
+            return `${fmtYMD(d)}`;
+        }
+
+        function startOfMonth(d){ const x=new Date(d.getFullYear(), d.getMonth(),1); return x; }
+        function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+        function startOfWeek(d){ const x=new Date(d); const diff=(x.getDay()+6)%7; x.setDate(x.getDate()-diff); return x; } // Monday as start
+
+        function matchesSearch(ev){
+            const q = state.search.trim().toLowerCase(); if(!q) return true;
+            const s = [ev.title, ev.notes, ev.location].map(v=> (v||'').toLowerCase()).join(' ');
+            return s.includes(q);
+        }
+
+        function renderMonth(container){
+            const first = startOfMonth(state.cursor);
+            const start = addDays(first, -((first.getDay()+6)%7)); // Monday grid start
+            const end = addDays(start, 41);
+            const events = expandEvents(start, end).filter(matchesSearch);
+
+            const header = document.createElement('div'); header.className='month-header';
+            ['월','화','수','목','금','토','일'].forEach(w=>{ const d=document.createElement('div'); d.textContent=w; header.appendChild(d); });
+            container.appendChild(header);
+
+            const grid = document.createElement('div'); grid.className='month-grid'; container.appendChild(grid);
+
+            for(let i=0;i<42;i++){
+                const day = addDays(start,i);
+                const cell = document.createElement('div'); cell.className='cell';
+                if(day.toDateString()===new Date().toDateString()) cell.classList.add('today');
+                if(day.getMonth()!==state.cursor.getMonth()) cell.classList.add('other-month');
+
+                const head = document.createElement('div'); head.className='date'; head.innerHTML=`<span>${day.getDate()}</span><button class="miniAdd" data-date="${day.toISOString()}">+</button>`;
+                cell.appendChild(head);
+
+                const list = document.createElement('div'); list.className='events';
+                events.filter(e=> sameDay(e.start, day)).sort((a,b)=> new Date(a.start)-new Date(b.start)).forEach(e=>{
+                    const chip = document.createElement('div'); chip.className='event-chip'; chip.style.background = hexToTrans(e.color||'#4a90e2', .18); chip.style.borderColor = hexToTrans(e.color||'#4a90e2', .45);
+                    chip.textContent = `${timeLabel(e)} ${e.title}`;
+                    chip.onclick = ()=> openModal(e);
+                    list.appendChild(chip);
+                });
+                cell.appendChild(list);
+                cell.onclick = (ev)=>{ if(ev.target.classList.contains('miniAdd')) return; openCreate(day); };
+                grid.appendChild(cell);
+            }
+            grid.addEventListener('click', (e)=>{
+                if(e.target.classList.contains('miniAdd')){
+                    e.stopPropagation(); openCreate(new Date(e.target.dataset.date));
+                }
+            });
+        }
+
+        function sameDay(a,b){ a=new Date(a); b=new Date(b); return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+
+        function renderWeek(container){
+            const start = startOfWeek(state.cursor), end = addDays(start,6);
+            const events = expandEvents(start, end).filter(matchesSearch);
+            const wrap = document.createElement('div');
+            // header days
+            const header = document.createElement('div'); header.className='month-header';
+            for(let i=0;i<7;i++){ const d=addDays(start,i); const el=document.createElement('div'); el.textContent=`${d.getMonth()+1}/${d.getDate()}`; header.appendChild(el); }
+            wrap.appendChild(header);
+
+            const grid = document.createElement('div'); grid.className='time-grid';
+            const hours = document.createElement('div'); hours.className='hours';
+            for(let h=0;h<24;h++){ const r=document.createElement('div'); r.className='hour'; r.textContent=pad(h)+':00'; hours.appendChild(r);} 
+            grid.appendChild(hours);
+
+            const slots = document.createElement('div'); slots.className='slots';
+            const dayHeight=24*60; // px scale: 1m = 1px
+            slots.style.height = dayHeight+'px';
+
+            events.forEach(e=>{
+                const s=new Date(e.start), t=new Date(e.end);
+                const dayIndex = ( ( ( (s.getDay()+6)%7 ) - ((start.getDay()+6)%7) ) + 7 )%7; // 0-6
+                const top = s.getHours()*60 + s.getMinutes();
+                const height = Math.max(30, (t - s)/60000);
+                const left = 6 + dayIndex*( (slots.clientWidth-12) /7 );
+                const width = (slots.clientWidth-24)/7;
+                const item = document.createElement('div'); item.className='slot';
+                item.style.top = top+'px'; item.style.left = `calc(${(dayIndex/7*100)}% + 6px)`; item.style.width = `calc(${(1/7*100)}% - 12px)`; item.style.height = height+'px';
+                item.style.background = hexToTrans(e.color||'#6ee7b7', .18); item.style.borderColor = hexToTrans(e.color||'#6ee7b7', .45);
+                item.textContent = `${timeLabel(e)} ${e.title}`;
+                item.onclick = ()=> openModal(e);
+                slots.appendChild(item);
+            });
+
+            grid.appendChild(slots); wrap.appendChild(grid); container.appendChild(wrap);
+        }
+
+        function renderDay(container){
+            const start = new Date(state.cursor.getFullYear(), state.cursor.getMonth(), state.cursor.getDate());
+            const end = addDays(start,1);
+            const events = expandEvents(start, end).filter(matchesSearch).sort((a,b)=> new Date(a.start)-new Date(b.start));
+            const list = document.createElement('div'); list.className='day-list';
+            events.forEach(e=>{
+                const item=document.createElement('div'); item.className='day-item';
+                item.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                        <div>
+                            <div style="font-weight:700">${e.title}</div>
+                            <div style="color:var(--muted);font-size:.9rem">${timeLabel(e)}${e.location? ' · '+e.location:''}</div>
+                        </div>
+                        <button style="border-color:${hexToTrans(e.color||'#4a90e2',.45)}" onclick="">열기</button>
+                    </div>
+                    <div style="margin-top:8px;color:var(--muted)">${(e.notes||'').replace(/\n/g,'<br>')}</div>`;
+                item.querySelector('button').onclick = ()=> openModal(e);
+                list.appendChild(item);
+            });
+            container.appendChild(list);
+        }
+
+        function timeLabel(e){
+            const s = new Date(e.start), t = new Date(e.end);
+            const same = sameDay(s,t);
+            const hhmm = d=> pad(d.getHours())+':'+pad(d.getMinutes());
+            if(same) return `${hhmm(s)}–${hhmm(t)}`;
+            return `${fmtYMD(s)} ${hhmm(s)} → ${fmtYMD(t)} ${hhmm(t)}`;
+        }
+
+        function hexToTrans(hex, alpha){
+            const c = hex.replace('#',''); const r=parseInt(c.substr(0,2),16), g=parseInt(c.substr(2,2),16), b=parseInt(c.substr(4,2),16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+        // --- Modal ---
+        const dlg = $('#eventModal');
+        function openCreate(day){
+            $('#modalTitle').textContent='일정 만들기';
+            $('#evId').value='';
+            $('#evTitle').value='';
+            $('#evLocation').value='';
+            const start=new Date(day); start.setHours(9,0,0,0); const end=new Date(day); end.setHours(10,0,0,0);
+            $('#evStart').value = toLocalInput(start);
+            $('#evEnd').value = toLocalInput(end);
+            $('#evColor').value='#4a90e2';
+            $('#evRepeat').value='none';
+            $('#evNotes').value='';
+            $('#legendColor').style.background = '#4a90e2';
+            $('#delBtn').style.display='none';
+            dlg.showModal();
+        }
+        function openModal(e){
+            $('#modalTitle').textContent='일정 편집';
+            $('#evId').value=e.id||'';
+            $('#evTitle').value=e.title||'';
+            $('#evLocation').value=e.location||'';
+            $('#evStart').value = toLocalInput(new Date(e.start));
+            $('#evEnd').value = toLocalInput(new Date(e.end));
+            $('#evColor').value = e.color||'#4a90e2';
+            $('#evRepeat').value = e.repeat||'none';
+            $('#evNotes').value = e.notes||'';
+            $('#legendColor').style.background = e.color||'#4a90e2';
+            $('#delBtn').style.display='inline-block';
+            dlg.showModal();
+        }
+
+        $('#evColor').addEventListener('change', e=> $('#legendColor').style.background=e.target.value);
+
+        $('#eventForm').addEventListener('close', ()=> render());
+        $('#eventForm').addEventListener('submit', ev=> ev.preventDefault());
+        $('#eventForm').addEventListener('click', (e)=>{
+            const action = e.target.value;
+            if(action==='save'){
+                const id = $('#evId').value || crypto.randomUUID();
+                const record = {
+                    id,
+                    title: $('#evTitle').value.trim(),
+                    location: $('#evLocation').value.trim(),
+                    start: fromLocalInput($('#evStart').value),
+                    end: fromLocalInput($('#evEnd').value),
+                    color: $('#evColor').value,
+                    repeat: $('#evRepeat').value,
+                    notes: $('#evNotes').value.trim(),
+                    until: null
+                };
+                if(record.title===''){ alert('제목은 필수입니다.'); return; }
+                // ensure end after start
+                if(record.end <= record.start){ alert('종료시간이 시작보다 늦어야 합니다.'); return; }
+                const idx = state.events.findIndex(x=>x.id===id);
+                if(idx>=0) state.events[idx]=record; else state.events.push(record);
+                save(); dlg.close('saved'); render();
+            }
+            if(action==='delete'){
+                const id=$('#evId').value; if(!id){ dlg.close(); return; }
+                if(confirm('정말 삭제할까요?')){
+                    state.events = state.events.filter(e=> e.id!==id);
+                    save(); dlg.close('deleted'); render();
+                }
+            }
+        });
+
+        // --- Navigation & View ---
+        $('#prevBtn').onclick = ()=>{ shift(-1); };
+        $('#nextBtn').onclick = ()=>{ shift(1); };
+        $('#todayBtn').onclick = ()=>{ state.cursor=new Date(); render(); };
+        $$('.view-switch button').forEach(b=> b.onclick = ()=>{ state.view=b.dataset.view; render(); });
+        $('#search').oninput = (e)=> { state.search=e.target.value; render(); };
+        $('#addBtn').onclick = ()=> openCreate(new Date());
+
+        function shift(n){
+            if(state.view==='month'){ state.cursor.setMonth(state.cursor.getMonth()+n); }
+            if(state.view==='week'){ state.cursor = addDays(state.cursor, n*7); }
+            if(state.view==='day'){ state.cursor = addDays(state.cursor, n); }
+            render();
+        }
+
+        // --- ICS Export/Import (basic) ---
+        function toICS(){
+            const esc = s=> String(s||'').replace(/[\\;,\n]/g, m=> ({'\\':'\\\\',';':'\\;','\,':'\\,','\n':'\\n'}[m]||m));
+            const dt = d=> new Date(d).toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+            const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//VibeCalendar//EN'];
+            for(const e of state.events){
+                lines.push('BEGIN:VEVENT');
+                lines.push('UID:'+e.id);
+                lines.push('DTSTAMP:'+dt(new Date()));
+                lines.push('DTSTART:'+dt(e.start));
+                lines.push('DTEND:'+dt(e.end));
+                if(e.title) lines.push('SUMMARY:'+esc(e.title));
+                if(e.location) lines.push('LOCATION:'+esc(e.location));
+                if(e.notes) lines.push('DESCRIPTION:'+esc(e.notes));
+                if(e.repeat && e.repeat!=='none'){
+                    const freq = e.repeat.toUpperCase();
+                    lines.push('RRULE:FREQ='+freq);
+                }
+                lines.push('END:VEVENT');
+            }
+            lines.push('END:VCALENDAR');
+            return lines.join('\r\n');
+        }
+
+        // Simple keyboard shortcuts
+        document.addEventListener('keydown', (e)=>{
+            if(e.key==='n' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); openCreate(new Date()); }
+            if(e.key==='1' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); state.view='month'; render(); }
+            if(e.key==='2' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); state.view='week'; render(); }
+            if(e.key==='3' && (e.ctrlKey||e.metaKey)) { e.preventDefault(); state.view='day'; render(); }
+        });
+
+        // Init
+        load(); render();
+    </script>
+</body>
+</html>
